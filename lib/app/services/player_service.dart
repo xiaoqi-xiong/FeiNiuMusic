@@ -29,6 +29,7 @@ import 'player/player_engine.dart';
 import 'stats_service.dart';
 import 'listening_recorder_service.dart';
 import 'volume_schedule_service.dart';
+import '../state/settings_tv_audio_state.dart';
 import '../state/settings_state.dart';
 import '../state/song_state.dart';
 import '../../components/feedback/app_toast.dart';
@@ -290,12 +291,54 @@ class PlayerService with WidgetsBindingObserver {
   /// 即过滤掉——从源头避免把 .txt 等不可播文件带进播放器（否则启动恢复队列
   /// 时 mpv 无法解码 → 误报 completed → 无限循环切歌）。
   static const Set<String> _nonAudioExtensions = {
-    'txt', 'log', 'md', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
-    'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico',
-    'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz',
-    'exe', 'dll', 'bat', 'cmd', 'sh', 'msi',
-    'json', 'html', 'htm', 'css', 'js', 'ts', 'py', 'java', 'c', 'cpp', 'h',
-    'ini', 'cfg', 'yaml', 'yml', 'csv', 'xml',
+    'txt',
+    'log',
+    'md',
+    'pdf',
+    'doc',
+    'docx',
+    'xls',
+    'xlsx',
+    'ppt',
+    'pptx',
+    'jpg',
+    'jpeg',
+    'png',
+    'gif',
+    'bmp',
+    'webp',
+    'svg',
+    'ico',
+    'zip',
+    'rar',
+    '7z',
+    'tar',
+    'gz',
+    'bz2',
+    'xz',
+    'exe',
+    'dll',
+    'bat',
+    'cmd',
+    'sh',
+    'msi',
+    'json',
+    'html',
+    'htm',
+    'css',
+    'js',
+    'ts',
+    'py',
+    'java',
+    'c',
+    'cpp',
+    'h',
+    'ini',
+    'cfg',
+    'yaml',
+    'yml',
+    'csv',
+    'xml',
   };
 
   /// 该歌曲是否确定不可播（非音频文件）：按 format / uri 扩展名判断。
@@ -324,23 +367,24 @@ class PlayerService with WidgetsBindingObserver {
 
   PlayerService._internal() {
     WidgetsBinding.instance.addObserver(this);
-    _wifiDirectPolicyActive = AppTranscodeSettings.directOnWifi.value &&
+    _wifiDirectPolicyActive =
+        AppTranscodeSettings.directOnWifi.value &&
         NetworkConnectionService.instance.isWifiConnected;
     NetworkConnectionService.instance.wifiConnected.addListener(
       _scheduleNetworkRouteRefresh,
     );
-    AppTranscodeSettings.directOnWifi.addListener(
-      _scheduleNetworkRouteRefresh,
-    );
+    AppTranscodeSettings.directOnWifi.addListener(_scheduleNetworkRouteRefresh);
     _initFuture = _init();
   }
 
   void _scheduleNetworkRouteRefresh() {
-    final active = AppTranscodeSettings.directOnWifi.value &&
+    final active =
+        AppTranscodeSettings.directOnWifi.value &&
         NetworkConnectionService.instance.isWifiConnected;
     if (active == _wifiDirectPolicyActive) return;
     _wifiDirectPolicyActive = active;
-    if (queue.value.isEmpty || currentIndex.value < 0 || isCasting.value) return;
+    if (queue.value.isEmpty || currentIndex.value < 0 || isCasting.value)
+      return;
     _networkRouteRefreshTimer?.cancel();
     _networkRouteRefreshTimer = Timer(const Duration(milliseconds: 500), () {
       unawaited(_refreshNetworkTranscodeRoute());
@@ -429,6 +473,7 @@ class PlayerService with WidgetsBindingObserver {
     _persistTimer?.cancel();
     _debugLog('init start');
     await AppPlaybackVolumeSettings.ensureLoaded();
+    await TvAudioSettings.ensureLoaded();
     await AppPlaybackSpeedSettings.ensureLoaded();
     await VolumeScheduleService.instance.ensureStarted();
     await WebDavPlaybackSettings.ensureLoaded();
@@ -459,8 +504,10 @@ class PlayerService with WidgetsBindingObserver {
     }
     _wireEngine(_activeEngine);
     AppPlaybackVolumeSettings.volume.addListener(_handleAppVolumeChanged);
+    TvAudioSettings.gainDb.addListener(_handleTvLoudnessChanged);
     AppPlaybackSpeedSettings.speed.addListener(_handlePlaybackSpeedChanged);
     await _applyAppVolume(AppPlaybackVolumeSettings.volume.value);
+    await _applyTvLoudness(_activeEngine);
     await _applyEngineSpeed(_activeEngine);
     // 用户可能在播放器初始化完成前就点了首页漫游（playQueue 递增
     // _queueGeneration）。_restorePlaybackState 内部按 generation 判断，
@@ -576,10 +623,9 @@ class PlayerService with WidgetsBindingObserver {
       //（normalizeCroppedPosition），这里按曲目自身 duration 覆盖时长，与
       // just_audio 的 ClippingAudioSource（上报裁剪后时长）行为一致；也避免
       // 把整轨时长误持久化进曲目。
-      final effective =
-          song != null && song.isCue && (song.durationMs ?? 0) > 0
-              ? Duration(milliseconds: song.durationMs!)
-              : value;
+      final effective = song != null && song.isCue && (song.durationMs ?? 0) > 0
+          ? Duration(milliseconds: song.durationMs!)
+          : value;
       duration.value = effective;
       final ms = effective?.inMilliseconds ?? 0;
       if (song != null && ms > 0) {
@@ -1213,12 +1259,7 @@ class PlayerService with WidgetsBindingObserver {
     if (isCue && cueOffset != null) {
       final offset = Duration(milliseconds: cueOffset);
       final end = Duration(milliseconds: cueOffset + (song.durationMs ?? 0));
-      return mk.Media(
-        uri,
-        start: offset,
-        end: end,
-        httpHeaders: headers,
-      );
+      return mk.Media(uri, start: offset, end: end, httpHeaders: headers);
     }
     return mk.Media(uri, httpHeaders: headers);
   }
@@ -1229,6 +1270,29 @@ class PlayerService with WidgetsBindingObserver {
         AppPlaybackVolumeSettings.volume.value.clamp(0, 1),
       );
     } catch (_) {}
+    await _applyTvLoudness(engine);
+  }
+
+  void _handleTvLoudnessChanged() {
+    unawaited(_applyTvLoudness(_activeEngine));
+  }
+
+  Future<void> _applyTvLoudness(PlayerEngine engine) async {
+    if (kIsWeb ||
+        defaultTargetPlatform != TargetPlatform.android ||
+        !AppLayoutSettings.tvMode.value) {
+      return;
+    }
+    final gain = TvAudioSettings.gainDb.value;
+    try {
+      if (engine is JustAudioEngine) {
+        await engine.setTvLoudnessGain(gain);
+      } else if (engine is MediaKitEngine) {
+        await engine.setTvLoudnessGain(gain);
+      }
+    } catch (error) {
+      debugPrint('[TV audio] Loudness compensation unavailable: $error');
+    }
   }
 
   /// 把当前持久化倍速应用到指定引擎。任何倍速变更都经这里落引擎。
@@ -2869,7 +2933,9 @@ class PlayerService with WidgetsBindingObserver {
     final idx = currentIndex.value;
     if (song == null || idx < 0) return;
     final svc = FeiNiuTranscodeService.instance;
-    _debugLog('setTranscodeOverride ${song.title} -> ${format?.name ?? 'global'}');
+    _debugLog(
+      'setTranscodeOverride ${song.title} -> ${format?.name ?? 'global'}',
+    );
     svc.setForcedTranscodeCodec(song.id, format?.name);
     // 强制转码与强制直连互斥：选了转码格式就取消该歌的直连覆盖。
     _forceDirectSongIds.remove(song.id);
@@ -4211,6 +4277,7 @@ class PlayerService with WidgetsBindingObserver {
     // 释放全部服务器转码会话（fire-and-forget）。
     unawaited(FeiNiuTranscodeService.instance.quitAll());
     AppPlaybackVolumeSettings.volume.removeListener(_handleAppVolumeChanged);
+    TvAudioSettings.gainDb.removeListener(_handleTvLoudnessChanged);
     AppPlaybackSpeedSettings.speed.removeListener(_handlePlaybackSpeedChanged);
     AppPlaybackAudioFocusSettings.exclusiveFocus.removeListener(
       _handleExclusiveFocusChanged,

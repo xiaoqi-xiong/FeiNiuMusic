@@ -32,7 +32,7 @@ class TvFocusable extends StatefulWidget {
     super.key,
     required this.child,
     this.borderRadius,
-    this.ringWidth = 3,
+    this.ringWidth = 1.5,
     this.autofocus = false,
     this.onActivate,
   });
@@ -56,7 +56,8 @@ class _TvFocusableState extends State<TvFocusable> {
       return KeyEventResult.ignored;
     }
     final key = event.logicalKey;
-    final isActivate = key == LogicalKeyboardKey.enter ||
+    final isActivate =
+        key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.select ||
         key == LogicalKeyboardKey.space;
     if (!isActivate) return KeyEventResult.ignored;
@@ -75,7 +76,7 @@ class _TvFocusableState extends State<TvFocusable> {
       onFocusChange: (focused) => setState(() => _focused = focused),
       onKeyEvent: _handleKey,
       child: AnimatedScale(
-        scale: _focused ? 1.04 : 1.0,
+        scale: _focused ? 1.01 : 1.0,
         duration: const Duration(milliseconds: 120),
         curve: Curves.easeOutCubic,
         child: AnimatedContainer(
@@ -84,14 +85,20 @@ class _TvFocusableState extends State<TvFocusable> {
           decoration: BoxDecoration(
             borderRadius: widget.borderRadius,
             border: _focused
-                ? Border.all(color: Colors.white, width: 3)
-                : Border.all(color: Colors.transparent, width: 3),
+                ? Border.all(
+                    color: scheme.onSurface.withValues(alpha: 0.22),
+                    width: widget.ringWidth,
+                  )
+                : Border.all(
+                    color: Colors.transparent,
+                    width: widget.ringWidth,
+                  ),
             boxShadow: _focused
                 ? [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.30),
-                      blurRadius: 18,
-                      offset: const Offset(0, 6),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
                     ),
                   ]
                 : null,
@@ -105,7 +112,7 @@ class _TvFocusableState extends State<TvFocusable> {
                     Positioned.fill(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: scheme.primary.withValues(alpha: 0.28),
+                          color: scheme.onSurface.withValues(alpha: 0.05),
                           borderRadius: widget.borderRadius,
                         ),
                       ),

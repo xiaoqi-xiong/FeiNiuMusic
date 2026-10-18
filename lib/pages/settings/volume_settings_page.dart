@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/state/settings_state.dart';
+import '../../app/state/settings_tv_audio_state.dart';
 import '../../components/index.dart';
 
 class VolumeSettingsPage extends StatefulWidget {
@@ -15,13 +16,16 @@ class _VolumeSettingsPageState extends State<VolumeSettingsPage> {
   void initState() {
     super.initState();
     AppPlaybackVolumeSettings.ensureLoaded();
+    TvAudioSettings.ensureLoaded();
     AppVolumeScheduleSettings.ensureLoaded();
   }
 
   @override
   Widget build(BuildContext context) {
-    final bottomPadding =
-        AppPageScaffold.scrollableBottomPadding(context, showMiniPlayer: false);
+    final bottomPadding = AppPageScaffold.scrollableBottomPadding(
+      context,
+      showMiniPlayer: false,
+    );
     return AppPageScaffold(
       extendBodyBehindAppBar: true,
       appBar: const AppTopBar(
@@ -54,6 +58,27 @@ class _VolumeSettingsPageState extends State<VolumeSettingsPage> {
               ),
             ],
           ),
+          if (AppLayoutSettings.tvMode.value) ...[
+            const SizedBox(height: 16),
+            AppSettingSection(
+              title: '电视音量',
+              children: [
+                ValueListenableBuilder<double>(
+                  valueListenable: TvAudioSettings.gainDb,
+                  builder: (context, gain, _) => AppSettingSlider(
+                    title: '响度补偿',
+                    description: '提升音乐响度，遥控器仍控制电视音量；0 dB 关闭',
+                    value: gain,
+                    min: 0,
+                    max: 12,
+                    divisions: 6,
+                    valueText: '+${gain.round()} dB',
+                    onChanged: TvAudioSettings.setGainDb,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 16),
           ValueListenableBuilder<bool>(
             valueListenable: AppVolumeScheduleSettings.enabled,
@@ -69,7 +94,10 @@ class _VolumeSettingsPageState extends State<VolumeSettingsPage> {
                   const SizedBox(height: 16),
                   // 关闭「定时音量」→ 隐藏下方「时间段」区块（避免显示无效的
                   // 时间段管理，对齐转码/高斯模糊设置页的联动隐藏逻辑）。
-                  if (enabled) _buildPeriodSection(context) else const SizedBox.shrink(),
+                  if (enabled)
+                    _buildPeriodSection(context)
+                  else
+                    const SizedBox.shrink(),
                 ],
               );
             },
@@ -89,7 +117,10 @@ class _VolumeSettingsPageState extends State<VolumeSettingsPage> {
           children: [
             if (periods.isEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 18,
+                ),
                 child: Text(
                   '暂无时间段，点下方「添加时间段」创建',
                   style: TextStyle(
@@ -107,7 +138,8 @@ class _VolumeSettingsPageState extends State<VolumeSettingsPage> {
             ),
             const AppSettingTile(
               title: '说明',
-              subtitle: '开启后，到达指定时间段自动切换到对应音量，离开后恢复手动音量。'
+              subtitle:
+                  '开启后，到达指定时间段自动切换到对应音量，离开后恢复手动音量。'
                   '仅在应用前台运行或后台播放音乐时生效。',
             ),
           ],
@@ -118,7 +150,8 @@ class _VolumeSettingsPageState extends State<VolumeSettingsPage> {
 
   Widget _buildPeriodTile(BuildContext context, VolumeSchedulePeriod p) {
     final scheme = Theme.of(context).colorScheme;
-    final activeNow = AppVolumeScheduleSettings.enabled.value &&
+    final activeNow =
+        AppVolumeScheduleSettings.enabled.value &&
         AppVolumeScheduleSettings.activePeriodNow(DateTime.now())?.id == p.id;
     return AppSettingTile(
       title: _fmtRange(p),
@@ -177,9 +210,8 @@ class _VolumeSettingsPageState extends State<VolumeSettingsPage> {
                   children: [
                     Text(
                       period == null ? '添加时间段' : '编辑时间段',
-                      style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: Theme.of(ctx).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 8),
                     _buildTimePickerRow(
@@ -320,7 +352,8 @@ class _VolumeSettingsPageState extends State<VolumeSettingsPage> {
 
   // ---------- 格式化辅助 ----------
 
-  String _fmtRange(VolumeSchedulePeriod p) => _fmtRangeManual(p.startMin, p.endMin);
+  String _fmtRange(VolumeSchedulePeriod p) =>
+      _fmtRangeManual(p.startMin, p.endMin);
 
   String _fmtRangeManual(int startMin, int endMin) {
     final s = _fmtMin(startMin);

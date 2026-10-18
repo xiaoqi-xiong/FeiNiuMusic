@@ -492,6 +492,19 @@ class MediaKitEngine implements PlayerEngine {
     await p.setVolume(volume.clamp(0.0, 1.0) * 100);
   }
 
+  Future<void> setTvLoudnessGain(double gainDb) async {
+    final player = _player;
+    if (player == null) return;
+    final dynamic nativePlayer = player.platform;
+    // The limiter follows the gain to avoid clipping louder song peaks.
+    await nativePlayer.setProperty(
+      'af',
+      gainDb <= 0
+          ? ''
+          : 'lavfi=[volume=${gainDb}dB,alimiter=limit=0.95:level=0]',
+    );
+  }
+
   @override
   Future<void> setSpeed(double speed) async {
     final p = _player;

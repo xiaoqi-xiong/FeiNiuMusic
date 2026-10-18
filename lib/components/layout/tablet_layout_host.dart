@@ -164,13 +164,16 @@ class _TabletLayoutHostState extends State<TabletLayoutHost>
                       child: IgnorePointer(
                         key: const ValueKey('tv-player-hide-sidebar'),
                         ignoring: hideChrome,
-                        child: Opacity(
-                          opacity: hideChrome ? 0 : 1,
-                          child: IgnorePointer(
-                            ignoring: t == 0,
-                            child: SideMenu(
-                              onNavigate: _handleNavigate,
-                              onPush: _handlePush,
+                        child: ExcludeFocus(
+                          excluding: hideChrome || t == 0,
+                          child: Opacity(
+                            opacity: hideChrome ? 0 : 1,
+                            child: IgnorePointer(
+                              ignoring: t == 0,
+                              child: SideMenu(
+                                onNavigate: _handleNavigate,
+                                onPush: _handlePush,
+                              ),
                             ),
                           ),
                         ),
@@ -210,9 +213,12 @@ class _TabletLayoutHostState extends State<TabletLayoutHost>
                                         'tv-player-hide-miniplayer',
                                       ),
                                       ignoring: hideMini,
-                                      child: Opacity(
-                                        opacity: hideMini ? 0 : 1,
-                                        child: _buildMiniPlayer(),
+                                      child: ExcludeFocus(
+                                        excluding: hideMini,
+                                        child: Opacity(
+                                          opacity: hideMini ? 0 : 1,
+                                          child: _buildMiniPlayer(),
+                                        ),
                                       ),
                                     ),
                                   );

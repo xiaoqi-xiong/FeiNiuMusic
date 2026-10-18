@@ -64,13 +64,14 @@ ThemeData buildMiuixMaterialTheme(
     // TV 模式：给所有 Material 可聚焦控件（InkWell/ListTile/IconButton 等）
     // 设主题 focusColor，让遥控器焦点在 10-foot 距离清晰可见。手机端 isTv
     // 为 false，focusColor 走默认，行为逐字节不变。
-    // 0.34/0.18 是为 TV 屏幕调高的可见度（0.22 太浅，3 米外看不出选中）。
+    // Match the dark surfaces instead of painting a bright primary-color block.
     focusColor: isTv
-        ? scheme.primary.withValues(alpha: 0.34)
+        ? Color.alphaBlend(
+            scheme.onSurface.withValues(alpha: isDark ? 0.06 : 0.04),
+            scheme.surfaceContainerHigh,
+          )
         : null,
-    highlightColor: isTv
-        ? scheme.primary.withValues(alpha: 0.18)
-        : null,
+    highlightColor: isTv ? scheme.onSurface.withValues(alpha: 0.05) : null,
     textTheme: textTheme,
     appBarTheme: base.appBarTheme.copyWith(
       backgroundColor: Colors.transparent,

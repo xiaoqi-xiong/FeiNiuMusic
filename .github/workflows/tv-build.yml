@@ -1,0 +1,70 @@
+name: TV build
+
+on:
+  push:
+    branches: [tv-remote-fixes]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tv-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-tv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: main
+          flutter-version: c97838627ff5c275e9788839d427ab03eb1dfa01
+          cache: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: flutter pub get
+      - name: Test TV navigation and audio settings
+        run: >-
+          flutter test
+          test/tv_sidebar_navigation_regression_test.dart
+          test/tv_audio_settings_test.dart
+          test/tv_focus_navigation_test.dart
+          test/tv_edge_action_test.dart
+          test/tv_edge_traversal_test.dart
+          test/tv_player_focus_scope_test.dart
+          test/tv_player_chrome_test.dart
+          test/tv_ui_scale_test.dart
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - run: flutter precache --android
+      - name: Restore private TV signing key
+        env:
+          TV_KEYSTORE: ${{ secrets.TV_SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$TV_KEYSTORE"
+          printf '%s' "$TV_KEYSTORE" | base64 -d > android/app/tv.keystore
+      - name: Build ARM64 TV app
+        env:
+          SIGNING_STORE_FILE: tv.keystore
+          SIGNING_STORE_PASSWORD: ${{ secrets.TV_SIGNING_PASSWORD }}
+          SIGNING_KEY_ALIAS: tv
+          SIGNING_KEY_PASSWORD: ${{ secrets.TV_SIGNING_PASSWORD }}
+        run: >-
+          flutter build apk --release --split-per-abi
+          --target-platform android-arm64
+          --dart-define=FEINIU_TV_MODE=1
+          --android-project-arg applicationIdOverride=com.feiniu.music.tv
+          --android-project-arg 'appLabelOverride=飞牛音乐 TV'
+          --build-number 2
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FeiNiuMusic-TV-arm64-${{ github.sha }}
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          retention-days: 30

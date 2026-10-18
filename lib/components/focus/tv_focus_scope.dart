@@ -51,14 +51,19 @@ class _TvFocusScopeState extends State<TvFocusScope> {
     void walk(FocusNode node) {
       for (final d in node.descendants) {
         if (!seen.add(d)) continue;
-        if (d.canRequestFocus && !d.skipTraversal && d.context != null) {
+        // A route's FocusScope can share the content's rectangle. Focusing it
+        // restores its previous child, so selecting it looks like a stuck key.
+        if (d is! FocusScopeNode &&
+            d.canRequestFocus &&
+            !d.skipTraversal &&
+            d.context != null) {
           final ro = d.context!.findRenderObject();
-          if (ro is RenderBox && ro.hasSize && ro.attached) {
+          if (ro is RenderBox &&
+              ro.hasSize &&
+              ro.attached &&
+              !ro.size.isEmpty) {
             final global = ro.localToGlobal(Offset.zero);
-            result.add((
-              d,
-              global & ro.size,
-            ));
+            result.add((d, global & ro.size));
           }
         }
         walk(d);
@@ -106,11 +111,18 @@ class _TvFocusScopeState extends State<TvFocusScope> {
       // 投影重叠判定：水平移动需纵向投影重叠（或贴近），垂直移动需横向
       // 投影重叠。容忍 4px 的间隙，避免因圆角/间距边界卡死。
       final bool overlaps = switch (dir) {
-        TraversalDirection.left ||
-        TraversalDirection.right =>
-          _rangesOverlap(curRect.top, curRect.bottom, rect.top, rect.bottom),
-        TraversalDirection.up || TraversalDirection.down =>
-          _rangesOverlap(curRect.left, curRect.right, rect.left, rect.right),
+        TraversalDirection.left || TraversalDirection.right => _rangesOverlap(
+          curRect.top,
+          curRect.bottom,
+          rect.top,
+          rect.bottom,
+        ),
+        TraversalDirection.up || TraversalDirection.down => _rangesOverlap(
+          curRect.left,
+          curRect.right,
+          rect.left,
+          rect.right,
+        ),
       };
       if (!overlaps) continue;
 

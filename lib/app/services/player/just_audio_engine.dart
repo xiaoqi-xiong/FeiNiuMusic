@@ -13,9 +13,21 @@ import 'player_engine.dart';
 /// 的 Dart 本地代理（代理不解析 `#EXT-X-MAP`，且会用 Dart HttpClient 连 NAS
 /// IPv6 导致不可达）。
 class JustAudioEngine implements PlayerEngine {
-  JustAudioEngine() : _player = AudioPlayer(useProxyForRequestHeaders: false);
+  JustAudioEngine() : this._(AndroidLoudnessEnhancer());
+
+  JustAudioEngine._(this._loudnessEnhancer)
+    : _player = AudioPlayer(
+        useProxyForRequestHeaders: false,
+        audioPipeline: AudioPipeline(androidAudioEffects: [_loudnessEnhancer]),
+      );
 
   final AudioPlayer _player;
+  final AndroidLoudnessEnhancer _loudnessEnhancer;
+
+  Future<void> setTvLoudnessGain(double gainDb) async {
+    await _loudnessEnhancer.setTargetGain(gainDb);
+    await _loudnessEnhancer.setEnabled(gainDb > 0);
+  }
 
   @override
   EngineKind get kind => EngineKind.justAudio;
@@ -120,7 +132,8 @@ class JustAudioEngine implements PlayerEngine {
   bool get playing => _player.playing;
 
   @override
-  EngineProcessingState get processingState => switch (_player.processingState) {
+  EngineProcessingState get processingState =>
+      switch (_player.processingState) {
         ProcessingState.idle => EngineProcessingState.idle,
         ProcessingState.loading => EngineProcessingState.loading,
         ProcessingState.ready => EngineProcessingState.ready,
@@ -130,10 +143,10 @@ class JustAudioEngine implements PlayerEngine {
 
   @override
   EngineLoopMode get loopMode => switch (_player.loopMode) {
-        LoopMode.off => EngineLoopMode.none,
-        LoopMode.one => EngineLoopMode.single,
-        LoopMode.all => EngineLoopMode.all,
-      };
+    LoopMode.off => EngineLoopMode.none,
+    LoopMode.one => EngineLoopMode.single,
+    LoopMode.all => EngineLoopMode.all,
+  };
 
   @override
   Stream<Duration> get positionStream => _player.positionStream;
@@ -142,25 +155,27 @@ class JustAudioEngine implements PlayerEngine {
   Stream<Duration?> get durationStream => _player.durationStream;
 
   @override
-  Stream<Duration> get bufferedPositionStream =>
-      _player.bufferedPositionStream;
+  Stream<Duration> get bufferedPositionStream => _player.bufferedPositionStream;
 
   @override
   Stream<EnginePlaybackState> get playbackStateStream =>
-      _player.playerStateStream.map((s) => EnginePlaybackState(
-            playing: s.playing,
-            processingState: switch (s.processingState) {
-              ProcessingState.idle => EngineProcessingState.idle,
-              ProcessingState.loading => EngineProcessingState.loading,
-              ProcessingState.ready => EngineProcessingState.ready,
-              ProcessingState.buffering => EngineProcessingState.buffering,
-              ProcessingState.completed => EngineProcessingState.completed,
-            },
-          ));
+      _player.playerStateStream.map(
+        (s) => EnginePlaybackState(
+          playing: s.playing,
+          processingState: switch (s.processingState) {
+            ProcessingState.idle => EngineProcessingState.idle,
+            ProcessingState.loading => EngineProcessingState.loading,
+            ProcessingState.ready => EngineProcessingState.ready,
+            ProcessingState.buffering => EngineProcessingState.buffering,
+            ProcessingState.completed => EngineProcessingState.completed,
+          },
+        ),
+      );
 
   @override
   Stream<EngineError> get errorStream => _player.errorStream.map(
-      (e) => EngineError(message: e.message ?? '', index: e.index));
+    (e) => EngineError(message: e.message ?? '', index: e.index),
+  );
 
   @override
   Stream<int?> get currentIndexStream => _player.currentIndexStream;

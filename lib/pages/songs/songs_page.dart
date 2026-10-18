@@ -736,10 +736,14 @@ class _SongListTile extends StatelessWidget {
     final theme = Theme.of(context);
     final leading = ArtworkWidget(song: song, size: 48, borderRadius: 8);
     return InkWell(
+      borderRadius: BorderRadius.circular(14),
       onTap: onTap,
       onLongPress: onLongPress,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: EdgeInsets.symmetric(
+          vertical: 6,
+          horizontal: AppLayoutSettings.tvMode.value ? 8 : 0,
+        ),
         child: Row(
           children: [
             if (multiSelect) ...[
